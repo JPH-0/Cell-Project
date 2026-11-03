@@ -1,0 +1,1048 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Animal Cell</title>
+<meta name="description" content="An interactive 3D animal cell. Cut it in half, explore the inside, and click any organelle to learn what it does.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Great+Vibes&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg-1: #060a16;
+    --bg-2: #12203f;
+    --panel: rgba(12, 18, 38, 0.72);
+    --line: rgba(160, 190, 255, 0.16);
+    --text: #eef2ff;
+    --muted: #9aa6c8;
+    --accent: #7fe3d0;
+    --orange: #ff9a3c;
+    --warn: #ffb36b;
+    --good: #8be37f;
+    --bad: #ff7d8a;
+    --radius: 16px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; }
+  body {
+    background: radial-gradient(1200px 800px at 50% 45%, var(--bg-2), var(--bg-1) 70%);
+    color: var(--text);
+    font-family: "DM Sans", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  #scene { position: fixed; inset: 0; display: block; touch-action: none; }
+  button { font: inherit; color: inherit; cursor: pointer; }
+  .script { font-family: "Great Vibes", "Snell Roundhand", "Apple Chancery", cursive; }
+
+  /* view switching */
+  .view-intro, .view-cut, .view-explore { transition: opacity .5s ease, transform .5s ease; }
+  body:not([data-view="intro"]) .view-intro,
+  body:not([data-view="cut"]) .view-cut,
+  body:not([data-view="explore"]) .view-explore { opacity: 0 !important; pointer-events: none !important; visibility: hidden; }
+
+  /* ---------- intro ---------- */
+  #title {
+    position: fixed; left: 50%; top: max(18px, 3vh); transform: translateX(-50%);
+    width: min(84vw, 560px); height: auto; overflow: visible; pointer-events: none;
+  }
+  #introBottom {
+    position: fixed; left: 0; right: 0; bottom: max(18px, 3vh);
+    display: flex; flex-direction: column; align-items: center; gap: 14px; pointer-events: none;
+  }
+  #byline { width: min(52vw, 240px); height: auto; overflow: visible; }
+  .ink-stroke { fill: none; stroke: #ffd2a1; stroke-width: 1.3; }
+  .ink-fill { fill: url(#inkGrad); }
+  .pen { fill: #fff; filter: drop-shadow(0 0 6px #ffcf8a) drop-shadow(0 0 14px #ff9a3c); opacity: 0; }
+
+  .cta { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; pointer-events: auto; opacity: 0; transform: translateY(10px); transition: opacity .6s, transform .6s; }
+  .cta.show { opacity: 1; transform: none; }
+  .btn {
+    border: 1px solid rgba(255,255,255,0.18); border-radius: 999px; padding: 13px 26px; font-weight: 700; font-size: 15px; letter-spacing: .02em;
+    background: rgba(12, 18, 38, 0.6); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+    transition: transform .15s, background .2s, border-color .2s, box-shadow .2s;
+  }
+  .btn:hover { transform: translateY(-2px); border-color: rgba(255,255,255,0.4); }
+  .btn.primary { background: linear-gradient(135deg, #ffb05a, #ff7a2e); border-color: transparent; color: #26120a; box-shadow: 0 8px 30px rgba(255, 140, 50, 0.35); }
+  .btn.primary:hover { box-shadow: 0 10px 38px rgba(255, 140, 50, 0.55); }
+  .btn .ico { margin-right: 8px; }
+
+  /* ---------- cut view ---------- */
+  #cutBar {
+    position: fixed; left: 0; right: 0; bottom: 22px; display: flex; flex-direction: column; align-items: center; gap: 12px;
+    pointer-events: none;
+  }
+  #cutBar .cta { pointer-events: auto; }
+  #cutCaption { font-size: 14px; color: var(--muted); background: rgba(6,10,22,.55); border: 1px solid var(--line); padding: 7px 14px; border-radius: 999px; }
+  .corner-title { position: fixed; top: 14px; left: 22px; font-size: 44px; line-height: 1; pointer-events: none; color: #ffe1bf; text-shadow: 0 0 22px rgba(255,150,60,.35); }
+
+  /* ---------- explore view ---------- */
+  .topbar {
+    position: fixed; top: 16px; left: 22px; right: 22px; display: flex; align-items: center; justify-content: space-between; gap: 12px; pointer-events: none;
+  }
+  .topbar .left { display: flex; align-items: center; gap: 14px; }
+  .topbar .corner-title { position: static; }
+  .back {
+    pointer-events: auto; border: 1px solid var(--line); background: var(--panel); border-radius: 999px; padding: 9px 16px; font-size: 14px; font-weight: 500;
+    backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+  }
+  .back:hover { background: rgba(255,255,255,0.08); }
+  .fixed-back { position: fixed; top: 20px; right: 22px; }
+  .modes {
+    pointer-events: auto; display: flex; gap: 4px; padding: 4px;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 999px;
+    backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+  }
+  .modes button { border: 0; background: transparent; padding: 9px 16px; border-radius: 999px; font-weight: 500; font-size: 14px; color: var(--muted); transition: background .2s, color .2s; }
+  .modes button.on { background: var(--text); color: var(--bg-1); }
+
+  .panel {
+    position: fixed; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
+    backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+  }
+  #legend { left: 22px; top: 96px; width: 240px; padding: 14px; max-height: calc(100vh - 330px); overflow: auto; }
+  #legend h2, #controls h2 { font-size: 11px; text-transform: uppercase; letter-spacing: .14em; color: var(--muted); margin: 2px 6px 10px; font-weight: 700; }
+  #legend ul { list-style: none; margin: 0; padding: 0; }
+  #legend li button { width: 100%; display: flex; align-items: center; gap: 10px; text-align: left; padding: 7px 8px; border: 0; background: transparent; border-radius: 10px; font-size: 14px; transition: background .15s; }
+  #legend li button:hover { background: rgba(255,255,255,0.06); }
+  #legend li button.on { background: rgba(127,227,208,0.14); }
+  .chip { width: 12px; height: 12px; border-radius: 50%; flex: none; box-shadow: 0 0 0 2px rgba(255,255,255,0.08); }
+  .count { margin-left: auto; color: var(--muted); font-size: 12px; }
+
+  #controls { left: 22px; bottom: 22px; width: 240px; padding: 14px 16px 16px; }
+  .row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 8px 6px 0; font-size: 14px; }
+  input[type=range] { width: 100%; accent-color: var(--accent); margin: 10px 0 2px; }
+  .toggle { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--text); cursor: pointer; }
+  .toggle input { accent-color: var(--accent); width: 16px; height: 16px; }
+  .ghost { border: 1px solid var(--line); background: transparent; border-radius: 10px; padding: 7px 12px; font-size: 13px; color: var(--text); }
+  .ghost:hover { background: rgba(255,255,255,0.06); }
+
+  /* ---------- info card (cut + explore) ---------- */
+  #info {
+    right: 22px; bottom: 22px; width: 340px; padding: 20px 20px 18px; z-index: 4;
+    transform: translateY(16px); opacity: 0; pointer-events: none; transition: opacity .25s, transform .25s;
+  }
+  #info.show { opacity: 1; transform: none; pointer-events: auto; }
+  body[data-view="intro"] #info { display: none; }
+  #info .kicker { display: flex; align-items: center; gap: 8px; font-size: 11px; text-transform: uppercase; letter-spacing: .14em; color: var(--muted); font-weight: 700; }
+  #info h3 { font-family: "Great Vibes", cursive; font-weight: 400; font-size: 44px; line-height: 1.05; margin: 6px 0 6px; color: #ffe1bf; }
+  #info p { margin: 0; color: #c9d2ee; line-height: 1.55; font-size: 15px; }
+  #info .fact { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); font-size: 14px; color: var(--muted); }
+  #info .fact b { color: var(--warn); font-weight: 700; }
+  #info .actions { display: flex; gap: 8px; margin-top: 14px; }
+  body[data-view="cut"] #info .actions { display: none; }
+  #info .close { position: absolute; top: 12px; right: 12px; border: 0; background: transparent; color: var(--muted); font-size: 20px; line-height: 1; padding: 4px 8px; }
+
+  /* ---------- quiz ---------- */
+  #quiz { right: 22px; top: 86px; width: 340px; padding: 18px 20px; display: none; }
+  #quiz.show { display: block; }
+  #quiz .q { font-size: 19px; line-height: 1.35; margin: 8px 0 10px; font-weight: 500; }
+  #quiz .meta { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .12em; font-weight: 700; }
+  #quiz .feedback { min-height: 22px; font-size: 15px; font-weight: 500; }
+  #quiz .feedback.good { color: var(--good); }
+  #quiz .feedback.bad { color: var(--bad); }
+  #quiz .actions { display: flex; gap: 8px; margin-top: 10px; }
+
+  /* ---------- labels ---------- */
+  .labels { position: fixed; inset: 0; pointer-events: none; transition: opacity .6s; }
+  .labels.faded { opacity: 0; }
+  .labels svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+  .labels polyline { stroke: rgba(230, 238, 255, 0.75); stroke-width: 1.3; fill: none; }
+  .labels circle { fill: #fff; }
+  .lbl {
+    position: absolute; pointer-events: auto; cursor: pointer; white-space: nowrap;
+    font-size: 13.5px; font-weight: 700; letter-spacing: .01em; padding: 3px 9px; border-radius: 7px;
+    background: rgba(7, 11, 24, 0.8); border: 1px solid var(--line); transform: translateY(-50%);
+    transition: background .15s, border-color .15s;
+  }
+  .lbl .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 7px; }
+  .lbl.left { transform: translate(-100%, -50%); }
+  .lbl:hover, .lbl.on { background: rgba(127,227,208,0.22); border-color: var(--accent); }
+  .lbl.off { display: none; }
+
+  #tag {
+    position: fixed; pointer-events: none; padding: 6px 10px; border-radius: 8px; font-size: 13px; font-weight: 500;
+    background: rgba(7, 11, 24, 0.85); border: 1px solid var(--line); transform: translate(14px, 14px); opacity: 0; transition: opacity .12s; white-space: nowrap;
+  }
+  #tag.show { opacity: 1; }
+
+  /* ---------- swoosh + loader ---------- */
+  #swoosh { position: fixed; inset: 0; pointer-events: none; overflow: hidden; z-index: 20; }
+  #swoosh i {
+    position: absolute; top: -30%; bottom: -30%; width: 70vw; left: -80vw; transform: skewX(-18deg);
+    background: linear-gradient(90deg, transparent, rgba(127,227,208,0.10) 25%, rgba(127,227,208,0.55) 45%, rgba(255,255,255,0.95) 50%, rgba(255,170,80,0.55) 56%, rgba(255,170,80,0.08) 78%, transparent);
+    filter: blur(6px); opacity: 0;
+  }
+  #flash { position: fixed; inset: 0; pointer-events: none; background: radial-gradient(circle at 50% 50%, rgba(255,230,190,.55), transparent 55%); opacity: 0; z-index: 19; }
+  #loader { position: fixed; inset: 0; display: grid; place-items: center; transition: opacity .6s; background: var(--bg-1); z-index: 30; }
+  #loader .ring { width: 54px; height: 54px; border-radius: 50%; border: 3px solid var(--line); border-top-color: var(--orange); animation: spin 1s linear infinite; margin: 0 auto 14px; }
+  #loader p { color: var(--muted); font-size: 14px; text-align: center; margin: 0; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .hidden { opacity: 0 !important; pointer-events: none !important; }
+  #menuBtn { display: none; }
+
+  @media (max-width: 760px) {
+    .lbl { font-size: 11px; padding: 2px 6px; } .lbl .dot { display: none; }
+    .corner-title { font-size: 34px; }
+    .topbar { top: 12px; left: 14px; right: 14px; }
+    .topbar .corner-title { display: none; }
+    .btn { padding: 12px 20px; font-size: 14px; }
+    #menuBtn { display: block; position: fixed; left: 14px; bottom: 14px; z-index: 5; border: 1px solid var(--line); background: var(--panel); backdrop-filter: blur(14px); padding: 10px 14px; border-radius: 999px; font-size: 14px; font-weight: 500; }
+    #legend, #controls { left: 14px; right: 14px; width: auto; display: none; }
+    body.menu #legend { display: block; top: auto; bottom: 214px; max-height: 38vh; }
+    body.menu #controls { display: block; bottom: 62px; }
+    #info, #quiz { left: 14px; right: 14px; width: auto; }
+    #info { bottom: 62px; }
+    body[data-view="cut"] #info { bottom: 120px; }
+    #quiz { top: auto; bottom: 62px; }
+    #cutCaption { display: none; }
+  }
+</style>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+</head>
+<body data-view="intro">
+<canvas id="scene"></canvas>
+
+<!-- shared gradient for the cursive ink -->
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <linearGradient id="inkGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff3e2"/>
+      <stop offset="0.55" stop-color="#ffc98f"/>
+      <stop offset="1" stop-color="#ff9a4a"/>
+    </linearGradient>
+  </defs>
+</svg>
+
+<!-- ================= INTRO ================= -->
+<svg id="title" class="view-intro write" data-text="Animal Cell" data-size="190" data-dur="2600"></svg>
+<div id="introBottom" class="view-intro">
+  <svg id="byline" class="write" data-text="By Joseph" data-size="110" data-dur="1700"></svg>
+  <div class="cta" id="introCta">
+    <button class="btn primary" id="btnCut"><span class="ico">✂</span>Cut in half</button>
+    <button class="btn" id="btnExplore">Explore the model</button>
+  </div>
+</div>
+
+<!-- ================= CUT VIEW ================= -->
+<div class="corner-title script view-cut">Animal Cell</div>
+<button class="back fixed-back view-cut" id="cutBack">← Back</button>
+<div id="cutBar" class="view-cut">
+  <div id="cutCaption">Drag to look around · click a label or any part to learn about it</div>
+  <div class="cta" id="cutCta">
+    <button class="btn primary" id="cutToExplore">Explore the model</button>
+  </div>
+</div>
+<div id="labelsCut" class="labels view-cut faded"><svg></svg></div>
+
+<!-- ================= EXPLORE VIEW ================= -->
+<div class="topbar view-explore">
+  <div class="left">
+    <button class="back" id="exploreBack">← Back</button>
+    <div class="corner-title script">Animal Cell</div>
+  </div>
+  <div class="modes">
+    <button id="modeExplore" class="on">Explore</button>
+    <button id="modeQuiz">Quiz me</button>
+  </div>
+</div>
+<aside id="legend" class="panel view-explore">
+  <h2>Organelles</h2>
+  <ul id="legendList"></ul>
+</aside>
+<aside id="controls" class="panel view-explore">
+  <h2>View</h2>
+  <div class="row"><span>Cell membrane</span><span id="peelVal">Visible</span></div>
+  <input id="peel" type="range" min="0" max="100" value="100" aria-label="Membrane visibility">
+  <div class="row"><label class="toggle"><input id="labelsOn" type="checkbox" checked> Show labels</label></div>
+  <div class="row">
+    <label class="toggle"><input id="spin" type="checkbox" checked> Auto-spin</label>
+    <button id="resetView" class="ghost">Reset view</button>
+  </div>
+</aside>
+<section id="quiz" class="panel view-explore">
+  <div class="meta"><span id="quizRound">Question 1 of 10</span><span id="quizScore">Score 0</span></div>
+  <div class="q" id="quizQ"></div>
+  <div class="feedback" id="quizFb"></div>
+  <div class="actions">
+    <button class="ghost" id="quizHint">Hint</button>
+    <button class="ghost" id="quizSkip">Skip</button>
+  </div>
+</section>
+<div id="labelsExplore" class="labels view-explore"><svg></svg></div>
+<button id="menuBtn" class="view-explore">☰ Parts &amp; view</button>
+
+<!-- shared info card -->
+<section id="info" class="panel" aria-live="polite">
+  <button class="close" id="infoClose" aria-label="Close">×</button>
+  <div class="kicker"><span class="chip" id="infoChip"></span><span id="infoKicker">Organelle</span></div>
+  <h3 id="infoTitle"></h3>
+  <p id="infoText"></p>
+  <div class="fact" id="infoFact"></div>
+  <div class="actions">
+    <button class="ghost" id="isolateBtn">Show only this</button>
+    <button class="ghost" id="zoomBtn">Zoom in</button>
+  </div>
+</section>
+
+<div id="tag"></div>
+<div id="flash"></div>
+<div id="swoosh"><i></i></div>
+<div id="loader"><div><div class="ring"></div><p id="loadText">Growing the cell… 0%</p></div></div>
+
+<script type="module">
+import * as THREE from "three";
+import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
+
+/* =========================================================== content */
+const ORGANELLES = {
+  "Nucleus":           { fact: "Your DNA, stretched out, would be about 2 meters long, and it all fits inside the nucleus.", clue: "I'm the control center that holds the cell's DNA." },
+  "Nucleolus":         { fact: "The nucleolus has no membrane around it. It's just a crowded spot of RNA and proteins.", clue: "I sit inside the nucleus and build ribosomes." },
+  "Cell Membrane":     { fact: "It's only about 8 nanometers thick, roughly 10,000 times thinner than a sheet of paper.", clue: "I'm the outer boundary that decides what comes in and out." },
+  "Cytoplasm":         { fact: "Cytoplasm is mostly water, about 80%.", clue: "I'm the jelly-like fluid that fills the cell." },
+  "Rough ER":          { fact: "It looks 'rough' because it's covered in ribosomes.", clue: "I'm a folded membrane covered in ribosomes that makes proteins." },
+  "Smooth ER":         { fact: "Liver cells have lots of smooth ER to help clean toxins out of the blood.", clue: "I'm a network of tubes with no ribosomes that makes fats." },
+  "Ribosomes":         { fact: "A single cell can have millions of ribosomes.", clue: "I'm a tiny protein factory. Some of me float and some sit on the ER." },
+  "Golgi Body":        { fact: "It works like a post office, labeling proteins and shipping them to the right place.", clue: "I'm a stack of flat sacs that packages and ships proteins." },
+  "Mitochondria":      { fact: "Mitochondria have their own DNA, passed down from your mother.", clue: "I'm the powerhouse that turns food into energy." },
+  "Lysosome":          { fact: "Lysosomes are acidic inside, which helps their enzymes break things down.", clue: "I'm the clean-up crew that breaks down waste." },
+  "Vacuoles/Vesicles": { fact: "Plant cells have one giant vacuole. Animal cells have many small ones.", clue: "I'm a little bubble that stores and carries materials." },
+};
+const ORDER = ["Nucleus","Nucleolus","Rough ER","Smooth ER","Ribosomes","Golgi Body","Mitochondria","Lysosome","Vacuoles/Vesicles","Cytoplasm","Cell Membrane"];
+const SHELL = new Set(["Cell Membrane", "Cytoplasm"]);
+const R = 2.0;
+let view = "intro", busy = false;
+
+/* =========================================================== renderer */
+const canvas = document.getElementById("scene");
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 0.95;
+renderer.localClippingEnabled = true;
+
+const scene = new THREE.Scene();
+const pmrem = new THREE.PMREMGenerator(renderer);
+scene.environment = pmrem.fromScene(new RoomEnvironment(renderer), 0.04).texture;
+
+const camera = new THREE.PerspectiveCamera(36, 1, 0.05, 120);
+const controls = new OrbitControls(camera, canvas);
+controls.enableDamping = true;
+controls.dampingFactor = 0.07;
+controls.minDistance = 0.6;
+controls.maxDistance = 16;
+controls.autoRotateSpeed = 0.55;
+
+const key = new THREE.DirectionalLight(0xffffff, 1.6); key.position.set(5, 8, 6); scene.add(key);
+const rim = new THREE.DirectionalLight(0x9fc4ff, 1.0); rim.position.set(-6, 3, -5); scene.add(rim);
+scene.add(new THREE.HemisphereLight(0xcfe0ff, 0x1a1030, 0.6));
+
+/* floating background specks */
+const specks = [];
+const dotTex = (() => {
+  const c = document.createElement("canvas"); c.width = c.height = 64;
+  const x = c.getContext("2d"), g = x.createRadialGradient(32, 32, 0, 32, 32, 32);
+  g.addColorStop(0, "rgba(255,255,255,1)"); g.addColorStop(0.35, "rgba(255,255,255,0.55)"); g.addColorStop(1, "rgba(255,255,255,0)");
+  x.fillStyle = g; x.fillRect(0, 0, 64, 64);
+  return new THREE.CanvasTexture(c);
+})();
+for (const [n, size, color, op] of [[520, 0.09, 0x8fb3ff, 0.7], [160, 0.16, 0xffc48a, 0.55]]) {
+  const g = new THREE.BufferGeometry(); const a = new Float32Array(n * 3);
+  for (let i = 0; i < n; i++) {
+    const r = 6 + Math.random() * 16, t = Math.random() * 6.283, p = Math.acos(2 * Math.random() - 1);
+    a.set([r * Math.sin(p) * Math.cos(t), r * Math.cos(p), r * Math.sin(p) * Math.sin(t)], i * 3);
+  }
+  g.setAttribute("position", new THREE.BufferAttribute(a, 3));
+  const pts = new THREE.Points(g, new THREE.PointsMaterial({ color, size, map: dotTex, transparent: true, opacity: op, depthWrite: false, blending: THREE.AdditiveBlending }));
+  pts.userData.base = a.slice(); scene.add(pts); specks.push(pts);
+}
+
+/* camera framing per view */
+const VIEWS = {
+  intro:   { pos: new THREE.Vector3(0, 1.5, 12.6), target: new THREE.Vector3(0, 0.15, 0) },
+  cut:     { pos: new THREE.Vector3(0.6, 7.4, 6.4), target: new THREE.Vector3(0, -0.6, 0) },
+  explore: { pos: new THREE.Vector3(5.6, 3.9, 5.6), target: new THREE.Vector3(0, 0, 0) },
+};
+camera.position.copy(VIEWS.intro.pos); controls.target.copy(VIEWS.intro.target);
+
+function resize() {
+  const w = window.innerWidth, h = window.innerHeight;
+  renderer.setSize(w, h, false);
+  camera.aspect = w / h;
+  camera.fov = w / h < 0.8 ? 56 : 36;
+  camera.updateProjectionMatrix();
+  // phones: bring the intro cell closer so it fills the screen
+  VIEWS.intro.pos.set(0, 1.5, w / h < 0.8 ? 9.2 : 12.6);
+  if (view === "intro" && !busy) camera.position.copy(VIEWS.intro.pos);
+}
+window.addEventListener("resize", resize); resize();
+
+/* =========================================================== model helpers */
+function kindOf(o) { let n = o; while (n) { if (n.userData && n.userData.organelle) return [n.userData.organelle, n]; n = n.parent; } return [null, null]; }
+
+function register(root, { clip = null, solidShell = false } = {}) {
+  const reg = { root, groups: {}, pickables: [] };
+  root.traverse((o) => {
+    if (!o.isMesh) return;
+    const [kind, owner] = kindOf(o); if (!kind) return;
+    o.material = o.material.clone();
+    const m = o.material;
+    m.envMapIntensity = 0.35;
+    if (kind === "Cell Membrane") {
+      m.envMapIntensity = 0.15; m.roughness = 0.6;
+      if ("sheen" in m) m.sheen = 0;
+      if ("specularIntensity" in m) m.specularIntensity = 0.25;
+      if (solidShell) { m.transparent = false; m.opacity = 1; }
+      else m.opacity = Math.min(1, m.opacity * 1.05);
+    }
+    if (kind === "Cytoplasm") m.opacity *= 0.8;
+    if (clip) { m.clippingPlanes = clip; m.side = THREE.DoubleSide; }
+    m.userData.baseOpacity = m.opacity;
+    m.userData.baseEmissive = m.emissive.clone();
+    m.userData.baseTransparent = m.transparent;
+    m.depthWrite = !m.transparent;
+    if (SHELL.has(kind)) o.renderOrder = kind === "Cell Membrane" ? 3 : 2;
+    o.userData.kind = kind;
+    const g = reg.groups[kind] || (reg.groups[kind] = { meshes: [], objects: new Set(), color: null });
+    g.meshes.push(o); g.objects.add(owner);
+    if (!g.color && !m.name.includes("Cristae") && !m.name.includes("Pore")) g.color = "#" + m.color.getHexString(THREE.SRGBColorSpace);
+    reg.pickables.push(o);
+  });
+  for (const g of Object.values(reg.groups)) g.objects = [...g.objects];
+  return reg;
+}
+
+/* radius range of a shell mesh (to build the flat rims at the cut) */
+function shellRadii(reg, kind) {
+  let lo = Infinity, hi = 0;
+  for (const m of reg.groups[kind].meshes) {
+    if (m.material.name.includes("Pore")) continue;
+    const p = m.geometry.attributes.position; const v = new THREE.Vector3();
+    m.updateWorldMatrix(true, false);
+    for (let i = 0; i < p.count; i++) { const l = v.fromBufferAttribute(p, i).applyMatrix4(m.matrixWorld).length(); lo = Math.min(lo, l); hi = Math.max(hi, l); }
+  }
+  return [lo, hi];
+}
+
+/* =========================================================== loading */
+const loadText = document.getElementById("loadText");
+const prog = { full: 0, cut: 0 };
+const showProg = () => loadText.textContent = `Growing the cell… ${Math.round((prog.full + prog.cut) * 50)}%`;
+const loader = new GLTFLoader();
+const loadGLB = (url, k) => new Promise((res, rej) => loader.load(url, res, (e) => { if (e.total) { prog[k] = e.loaded / e.total; showProg(); } }, rej));
+
+let FULL = null;      // { bottom, top, topGroup, ... } for intro + cut
+let EX = null;        // registry for the explore (wedge) model
+const clipBottom = [new THREE.Plane(new THREE.Vector3(0, -1, 0), 0)];   // keeps y <= 0
+const clipTop = [new THREE.Plane(new THREE.Vector3(0, 1, 0), 0)];       // keeps y >= 0 (moves with the top half)
+const topLocalPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+
+Promise.all([loadGLB("animal_cell_full.glb", "full"), loadGLB("animal_cell.glb", "cut")]).then(([fullG, cutG]) => {
+  /* --- closed cell = two halves of the same model --- */
+  const bottomRoot = fullG.scene;
+  const topRoot = fullG.scene.clone(true);
+  const topGroup = new THREE.Group(); topGroup.add(topRoot);
+  const fullGroup = new THREE.Group(); fullGroup.add(bottomRoot, topGroup);
+  scene.add(fullGroup);
+  const bottom = register(bottomRoot, { clip: clipBottom, solidShell: true });
+  const top = register(topRoot, { clip: clipTop, solidShell: true });
+
+  // flat rims where the knife cut through the membrane and nucleus
+  const rims = new THREE.Group();
+  const [mLo, mHi] = shellRadii(bottom, "Cell Membrane");
+  const [nLo, nHi] = shellRadii(bottom, "Nucleus");
+  const rimMat = (hex) => new THREE.MeshStandardMaterial({ color: hex, roughness: 0.7, side: THREE.DoubleSide });
+  for (const [lo, hi, col] of [[mLo, mHi, 0xff8a2a], [nLo, Math.min(nHi, nLo + 0.06), 0x8f7fe0]]) {
+    const ring = new THREE.Mesh(new THREE.RingGeometry(lo, hi, 160), rimMat(col));
+    ring.rotation.x = -Math.PI / 2; rims.add(ring);
+  }
+  const topRims = rims.clone(); topRims.traverse(o => { if (o.isMesh) o.material = o.material.clone(); });
+  rims.position.y = -0.001; topRims.position.y = 0.001;
+  fullGroup.add(rims); topGroup.add(topRims);
+  rims.visible = topRims.visible = false;      // only show the cut faces once it's cut
+
+  // glowing laser line that traces the cut
+  const laserMat = new THREE.MeshBasicMaterial({ color: 0xfff1c9, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false });
+  const laser = new THREE.Mesh(new THREE.TorusGeometry(mHi + 0.02, 0.018, 8, 200, 0.001), laserMat);
+  laser.rotation.x = Math.PI / 2; fullGroup.add(laser);
+  const laserGlow = new THREE.PointLight(0xffb066, 0, 3); fullGroup.add(laserGlow);
+
+  FULL = { group: fullGroup, bottom, top, topGroup, rims, topRims, laser, laserGlow, outerR: mHi };
+
+  /* --- cutaway model for explore --- */
+  const exRoot = cutG.scene;
+  scene.add(exRoot);
+  exRoot.visible = false;
+  EX = register(exRoot);
+
+  buildLegend();
+  labelsCut = new LabelSet(document.getElementById("labelsCut"), bottom, "cut");
+  labelsEx = new LabelSet(document.getElementById("labelsExplore"), EX, "explore");
+  applyPeel();
+  document.getElementById("loader").classList.add("hidden");
+  startIntro();
+}).catch((err) => { loadText.textContent = "Couldn't load the 3D files. Make sure animal_cell.glb and animal_cell_full.glb are next to index.html."; console.error(err); });
+
+/* =========================================================== cursive writing */
+const SVGNS = "http://www.w3.org/2000/svg";
+let uid = 0;
+function prepareWriting(svg) {
+  const text = svg.dataset.text, size = +svg.dataset.size;
+  const id = "w" + (uid++);
+  svg.innerHTML = `
+    <defs>
+      <linearGradient id="${id}f" x1="0" x2="1"><stop offset="0" stop-color="#fff"/><stop offset="1" stop-color="#000"/></linearGradient>
+      <mask id="${id}ms" maskUnits="userSpaceOnUse" x="-2000" y="-2000" width="6000" height="6000">
+        <rect class="solid" x="-2000" y="-2000" width="0" height="6000" fill="#fff"/>
+        <rect class="feather" x="0" y="-2000" width="60" height="6000" fill="url(#${id}f)"/>
+      </mask>
+      <mask id="${id}mf" maskUnits="userSpaceOnUse" x="-2000" y="-2000" width="6000" height="6000">
+        <rect class="solid" x="-2000" y="-2000" width="0" height="6000" fill="#fff"/>
+        <rect class="feather" x="0" y="-2000" width="90" height="6000" fill="url(#${id}f)"/>
+      </mask>
+    </defs>
+    <text class="script ink-stroke" x="0" y="0" font-size="${size}" mask="url(#${id}ms)">${text}</text>
+    <text class="script ink-fill" x="0" y="0" font-size="${size}" mask="url(#${id}mf)">${text}</text>
+    <circle class="pen" r="${size * 0.035}"/>`;
+  const bb = svg.querySelector(".ink-fill").getBBox();
+  const pad = size * 0.18;
+  svg.setAttribute("viewBox", `${bb.x - pad} ${bb.y - pad} ${bb.width + pad * 2} ${bb.height + pad * 2}`);
+  svg.style.aspectRatio = `${bb.width + pad * 2} / ${bb.height + pad * 2}`;
+  return { svg, bb, size, ms: svg.querySelector(`#${id}ms`), mf: svg.querySelector(`#${id}mf`), pen: svg.querySelector(".pen") };
+}
+function setMask(mask, x) {
+  mask.querySelector(".solid").setAttribute("width", Math.max(0, x + 2000));
+  mask.querySelector(".feather").setAttribute("x", x);
+}
+function write(w, dur) {
+  return new Promise((done) => {
+    const { bb, size, ms, mf, pen } = w;
+    const t0 = performance.now(), span = bb.width + size * 0.6;
+    pen.style.opacity = 1;
+    const step = (now) => {
+      let t = Math.min(1, (now - t0) / dur);
+      // slightly uneven speed so it feels hand-written
+      const tt = Math.min(1, t + 0.025 * Math.sin(t * 23) * (1 - t));
+      const x = bb.x - size * 0.3 + span * tt;
+      setMask(ms, x);
+      setMask(mf, x - size * 0.55);
+      pen.setAttribute("cx", x);
+      pen.setAttribute("cy", bb.y + bb.height * (0.5 + 0.26 * Math.sin(tt * 46) * Math.cos(tt * 13)));
+      if (t < 1) requestAnimationFrame(step);
+      else {
+        // let the ink catch up, then lift the pen
+        const t1 = performance.now();
+        const settle = (n) => { const k = Math.min(1, (n - t1) / 450); setMask(mf, x - size * 0.55 + size * 1.2 * k); pen.style.opacity = 1 - k; if (k < 1) requestAnimationFrame(settle); else done(); };
+        requestAnimationFrame(settle);
+      }
+    };
+    requestAnimationFrame(step);
+  });
+}
+function showWritten(w) { setMask(w.ms, w.bb.x + w.bb.width + 400); setMask(w.mf, w.bb.x + w.bb.width + 400); w.pen.style.opacity = 0; }
+
+let introWritten = false;
+async function startIntro() {
+  try { await document.fonts.load('100px "Great Vibes"'); } catch (e) {}
+  const title = prepareWriting(document.getElementById("title"));
+  const by = prepareWriting(document.getElementById("byline"));
+  controls.autoRotate = true; controls.enableZoom = false;
+  await sleep(450);
+  await write(title, +document.getElementById("title").dataset.dur);
+  await sleep(250);
+  await write(by, +document.getElementById("byline").dataset.dur);
+  introWritten = true;
+  document.getElementById("introCta").classList.add("show");
+}
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
+/* =========================================================== tweening */
+const ease = (t) => t < 0.5 ? 4 * t ** 3 : 1 - (-2 * t + 2) ** 3 / 2;
+const easeOut = (t) => 1 - (1 - t) ** 3;
+const tweens = new Set();
+function tween(dur, fn, e = ease) {
+  return new Promise((done) => tweens.add({ t0: performance.now(), dur, fn, e, done }));
+}
+function runTweens(now) {
+  for (const tw of tweens) {
+    const t = Math.min(1, (now - tw.t0) / tw.dur);
+    tw.fn(tw.e(t), t);
+    if (t >= 1) { tweens.delete(tw); tw.done(); }
+  }
+}
+function moveCamera(to, dur = 1300) {
+  const fp = camera.position.clone(), ft = controls.target.clone();
+  return tween(dur, (k) => { camera.position.lerpVectors(fp, to.pos, k); controls.target.lerpVectors(ft, to.target, k); });
+}
+function setOpacity(reg, k) {
+  for (const g of Object.values(reg.groups)) for (const m of g.meshes) {
+    const mat = m.material;
+    mat.transparent = k < 0.999 || mat.userData.baseTransparent;
+    mat.opacity = mat.userData.baseOpacity * k;
+    mat.depthWrite = !mat.transparent;
+  }
+}
+
+/* =========================================================== views */
+function setView(v) { view = v; document.body.dataset.view = v; tag.classList.remove("show"); }
+
+/* ---- cut in half ---- */
+document.getElementById("btnCut").addEventListener("click", cutInHalf);
+async function cutInHalf() {
+  if (busy || !FULL) return; busy = true;
+  const { laser, laserGlow, topGroup, top, topRims, outerR } = FULL;
+  document.getElementById("introCta").classList.remove("show");
+  controls.autoRotate = false; controls.enabled = false;
+  await moveCamera({ pos: new THREE.Vector3(0, 2.2, 10), target: new THREE.Vector3(0, 0, 0) }, 700);
+
+  // laser traces around the middle
+  laser.material.opacity = 1; laserGlow.intensity = 6;
+  await tween(900, (k) => {
+    const arc = Math.max(0.001, k * Math.PI * 2);
+    laser.geometry.dispose();
+    laser.geometry = new THREE.TorusGeometry(outerR + 0.02, 0.02, 8, 200, arc);
+    laserGlow.position.set(Math.cos(arc) * (outerR + 0.3), 0, -Math.sin(arc) * (outerR + 0.3));
+  }, (t) => t);
+  // flash + tiny shake
+  FULL.rims.visible = FULL.topRims.visible = true;
+  const flash = document.getElementById("flash");
+  flash.animate([{ opacity: 0 }, { opacity: 1 }, { opacity: 0 }], { duration: 420, easing: "ease-out" });
+  await tween(260, (k, t) => { topGroup.position.x = Math.sin(t * 40) * 0.025 * (1 - t); laser.material.opacity = 1 - k; laserGlow.intensity = 6 * (1 - k); });
+  topGroup.position.x = 0;
+
+  setView("cut");
+  // top half lifts away and fades while the camera looks down into the cell
+  const camTo = VIEWS.cut;
+  const fp = camera.position.clone(), ft = controls.target.clone();
+  await tween(1900, (k, t) => {
+    topGroup.position.y = 4.2 * k;
+    topGroup.position.z = -1.2 * k;
+    topGroup.rotation.x = -0.35 * k;
+    const fade = Math.max(0, Math.min(1, (t - 0.35) / 0.55));
+    setOpacity(top, 1 - fade);
+    topRims.traverse(o => { if (o.isMesh) { o.material.transparent = true; o.material.opacity = 1 - fade; } });
+    camera.position.lerpVectors(fp, camTo.pos, k); controls.target.lerpVectors(ft, camTo.target, k);
+  });
+  topGroup.visible = false;
+  controls.enabled = true; controls.enableZoom = true;
+  document.getElementById("labelsCut").classList.remove("faded");
+  document.getElementById("cutCta").classList.add("show");
+  busy = false;
+}
+
+async function backToIntroFromCut() {
+  if (busy) return; busy = true;
+  deselect();
+  document.getElementById("labelsCut").classList.add("faded");
+  document.getElementById("cutCta").classList.remove("show");
+  setView("intro");
+  const { topGroup, top, topRims } = FULL;
+  topGroup.visible = true;
+  const camP = moveCamera(VIEWS.intro, 1500);
+  await tween(1500, (k) => {
+    topGroup.position.set(0, 4.2 * (1 - k), -1.2 * (1 - k));
+    topGroup.rotation.x = -0.35 * (1 - k);
+    setOpacity(top, k);
+    topRims.traverse(o => { if (o.isMesh) o.material.opacity = k; });
+  });
+  await camP;
+  setOpacity(top, 1);
+  FULL.rims.visible = FULL.topRims.visible = false;
+  controls.autoRotate = true; controls.enableZoom = false;
+  if (introWritten) document.getElementById("introCta").classList.add("show");
+  busy = false;
+}
+document.getElementById("cutBack").addEventListener("click", backToIntroFromCut);
+
+/* ---- swoosh into the explore model ---- */
+function swooshFx() {
+  const bar = document.querySelector("#swoosh i");
+  bar.animate([
+    { left: "-80vw", opacity: 0 }, { opacity: 1, offset: 0.2 }, { opacity: 1, offset: 0.75 }, { left: "110vw", opacity: 0 }
+  ], { duration: 900, easing: "cubic-bezier(.55,.05,.35,1)" });
+}
+async function goExplore() {
+  if (busy || !EX) return; busy = true;
+  deselect();
+  document.getElementById("introCta").classList.remove("show");
+  document.getElementById("cutCta").classList.remove("show");
+  document.getElementById("labelsCut").classList.add("faded");
+  controls.autoRotate = false; controls.enabled = false;
+  swooshFx();
+  // cell whips around and rushes past the camera...
+  const g = FULL.group;
+  await tween(520, (k) => { g.rotation.y = k * Math.PI * 1.2; g.scale.setScalar(1 + k * 0.5); setOpacity(FULL.bottom, 1 - k); setOpacity(FULL.top, 1 - k); }, (t) => t * t);
+  g.visible = false; g.rotation.y = 0; g.scale.setScalar(1);
+  setView("explore");
+  // ...and the cutaway model swings in
+  EX.root.visible = true;
+  EX.root.scale.setScalar(0.55); EX.root.rotation.y = -Math.PI * 0.9;
+  camera.position.copy(VIEWS.explore.pos).multiplyScalar(1.15); controls.target.set(0, 0, 0);
+  await tween(1000, (k) => { EX.root.scale.setScalar(0.55 + 0.45 * k); EX.root.rotation.y = -Math.PI * 0.9 * (1 - k); camera.position.copy(VIEWS.explore.pos).multiplyScalar(1.15 - 0.15 * k); }, easeOut);
+  controls.enabled = true; controls.enableZoom = true; setSpin(true);
+  busy = false;
+}
+document.getElementById("btnExplore").addEventListener("click", goExplore);
+document.getElementById("cutToExplore").addEventListener("click", goExplore);
+
+document.getElementById("exploreBack").addEventListener("click", async () => {
+  if (busy) return; busy = true;
+  if (mode === "quiz") setMode("explore");
+  deselect();
+  swooshFx();
+  await tween(450, (k) => { EX.root.scale.setScalar(1 - 0.45 * k); EX.root.rotation.y = Math.PI * 0.9 * k; }, (t) => t * t);
+  EX.root.visible = false; EX.root.rotation.y = 0; EX.root.scale.setScalar(1);
+  // reset the closed cell
+  const { group, topGroup, top, bottom, topRims } = FULL;
+  group.visible = true; topGroup.visible = true; topGroup.position.set(0, 0, 0); topGroup.rotation.set(0, 0, 0);
+  topRims.traverse(o => { if (o.isMesh) o.material.opacity = 1; });
+  FULL.rims.visible = topRims.visible = false;
+  setOpacity(top, 1); setOpacity(bottom, 1);
+  setView("intro");
+  group.scale.setScalar(0.6);
+  camera.position.copy(VIEWS.intro.pos); controls.target.copy(VIEWS.intro.target);
+  await tween(800, (k) => group.scale.setScalar(0.6 + 0.4 * k), easeOut);
+  controls.enabled = true; controls.autoRotate = true; controls.enableZoom = false;
+  if (introWritten) document.getElementById("introCta").classList.add("show");
+  busy = false;
+});
+
+/* =========================================================== explore: legend, peel */
+const legendList = document.getElementById("legendList");
+function buildLegend() {
+  legendList.innerHTML = "";
+  for (const kind of ORDER) {
+    const g = EX.groups[kind]; if (!g) continue;
+    const li = document.createElement("li");
+    const n = g.objects.length;
+    li.innerHTML = `<button data-kind="${kind}"><span class="chip" style="background:${g.color}"></span>${kind}${n > 1 && kind !== "Ribosomes" ? `<span class="count">${n}</span>` : ""}</button>`;
+    li.querySelector("button").addEventListener("click", () => {
+      if (mode === "quiz") return answer(kind);
+      select(kind, true);
+      document.body.classList.remove("menu");
+    });
+    legendList.appendChild(li);
+  }
+}
+const peel = document.getElementById("peel"), peelVal = document.getElementById("peelVal");
+function applyPeel() {
+  if (!EX) return;
+  const v = peel.value / 100;
+  peelVal.textContent = v > 0.95 ? "Visible" : v < 0.03 ? "Hidden" : Math.round(v * 100) + "%";
+  for (const kind of SHELL) {
+    const g = EX.groups[kind]; if (!g) continue;
+    for (const m of g.meshes) {
+      const mat = m.material;
+      mat.transparent = true;
+      mat.opacity = mat.userData.baseOpacity * v * (isolated && isolated !== kind ? 0.15 : 1);
+      mat.depthWrite = false;
+      m.visible = v > 0.02;
+    }
+  }
+}
+peel.addEventListener("input", applyPeel);
+
+/* =========================================================== selection (cut + explore) */
+let selected = null, isolated = null;
+const info = document.getElementById("info");
+const activeReg = () => view === "cut" ? FULL.bottom : EX;
+function setEmissive(reg, kind, color, strength) {
+  const g = reg && reg.groups[kind]; if (!g) return;
+  for (const m of g.meshes) {
+    if (color) { m.material.emissive.set(color); m.material.emissiveIntensity = strength; }
+    else { m.material.emissive.copy(m.material.userData.baseEmissive); m.material.emissiveIntensity = 1; }
+  }
+}
+function select(kind, fly = false) {
+  const reg = activeReg();
+  if (selected && selected !== kind) setEmissive(reg, selected, null);
+  selected = kind;
+  const g = reg.groups[kind];
+  setEmissive(reg, kind, g.color, SHELL.has(kind) ? 0.15 : 0.45);
+  document.querySelectorAll("#legendList button").forEach(b => b.classList.toggle("on", b.dataset.kind === kind));
+  document.getElementById("infoChip").style.background = g.color;
+  document.getElementById("infoKicker").textContent = g.objects.length > 1 && kind !== "Ribosomes" ? `${g.objects.length} in this cell` : "Organelle";
+  document.getElementById("infoTitle").textContent = kind === "Vacuoles/Vesicles" ? "Vacuoles & Vesicles" : kind;
+  document.getElementById("infoText").textContent = g.objects[0].userData.info || "";
+  document.getElementById("infoFact").innerHTML = `<b>Fun fact:</b> ${ORGANELLES[kind]?.fact || ""}`;
+  document.getElementById("isolateBtn").textContent = isolated === kind ? "Show everything" : "Show only this";
+  info.classList.add("show");
+  if (view === "explore") {
+    if (isolated && isolated !== kind) isolate(kind);
+    if (fly) flyTo(kind);
+  }
+  controls.autoRotate = false; spin.checked = false;
+}
+function deselect() {
+  for (const reg of [EX, FULL && FULL.bottom]) if (reg && selected) setEmissive(reg, selected, null);
+  selected = null;
+  info.classList.remove("show");
+  document.querySelectorAll("#legendList button").forEach(b => b.classList.remove("on"));
+  if (isolated) isolate(null);
+}
+function isolate(kind) {
+  isolated = kind;
+  for (const [k, g] of Object.entries(EX.groups)) {
+    if (SHELL.has(k)) continue;
+    for (const m of g.meshes) {
+      const mat = m.material, dim = kind && k !== kind;
+      mat.transparent = dim || mat.userData.baseTransparent;
+      mat.opacity = dim ? 0.08 : mat.userData.baseOpacity;
+      mat.depthWrite = !mat.transparent;
+      mat.needsUpdate = true;
+    }
+  }
+  applyPeel();
+  document.getElementById("isolateBtn").textContent = kind ? "Show everything" : "Show only this";
+}
+document.getElementById("infoClose").addEventListener("click", deselect);
+document.getElementById("isolateBtn").addEventListener("click", () => isolate(isolated === selected ? null : selected));
+document.getElementById("zoomBtn").addEventListener("click", () => selected && flyTo(selected, true));
+
+function flyTo(kind, close = false) {
+  const g = EX.groups[kind];
+  let best = g.objects[0], bestD = Infinity;
+  for (const o of g.objects) { const p = new THREE.Box3().setFromObject(o).getCenter(new THREE.Vector3()); const d = p.distanceTo(camera.position); if (d < bestD) { bestD = d; best = o; } }
+  const whole = kind === "Ribosomes" || SHELL.has(kind);
+  const target = whole ? new THREE.Vector3() : new THREE.Box3().setFromObject(best).getCenter(new THREE.Vector3());
+  const size = new THREE.Box3().setFromObject(best).getSize(new THREE.Vector3()).length();
+  const dist = whole ? 7.5 : Math.max(close ? 1.0 : 1.8, size * (close ? 1.6 : 2.6));
+  let dir = camera.position.clone().sub(controls.target).normalize();
+  if (!whole) {
+    dir = target.length() > 0.5 ? target.clone().normalize() : new THREE.Vector3(1, 0.8, 1).normalize();
+    if (peel.value > 30) { peel.value = 30; applyPeel(); }
+  }
+  moveCamera({ pos: target.clone().add(dir.multiplyScalar(dist)), target }, 1200);
+  setSpin(false);
+}
+document.getElementById("resetView").addEventListener("click", () => { deselect(); moveCamera(VIEWS.explore, 1200); });
+const spin = document.getElementById("spin");
+function setSpin(on) { controls.autoRotate = on; spin.checked = on; }
+spin.addEventListener("change", () => controls.autoRotate = spin.checked);
+
+/* =========================================================== picking */
+const ray = new THREE.Raycaster(), ptr = new THREE.Vector2();
+const tag = document.getElementById("tag");
+function pick(ev) {
+  if (view === "intro" || !EX) return null;
+  const r = canvas.getBoundingClientRect();
+  ptr.set(((ev.clientX - r.left) / r.width) * 2 - 1, -((ev.clientY - r.top) / r.height) * 2 + 1);
+  ray.setFromCamera(ptr, camera);
+  const reg = activeReg();
+  let hits = ray.intersectObjects(reg.pickables, false).filter(h => h.object.visible && h.object.material.opacity > 0.05);
+  if (view === "cut") hits = hits.filter(h => h.point.y <= 0.01);     // ignore the clipped-away top
+  const inner = hits.find(h => !SHELL.has(h.object.userData.kind) && (!isolated || h.object.userData.kind === isolated));
+  if (inner) return inner.object.userData.kind;
+  const okShell = view === "cut" || peel.value > 30;
+  const shell = hits.find(h => SHELL.has(h.object.userData.kind) && okShell);
+  return shell ? shell.object.userData.kind : null;
+}
+let downAt = null;
+canvas.addEventListener("pointerdown", (e) => { downAt = [e.clientX, e.clientY]; });
+canvas.addEventListener("pointerup", (e) => {
+  if (busy || !downAt || Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]) > 6) return;
+  const kind = pick(e);
+  if (view === "explore" && mode === "quiz") { if (kind) answer(kind); return; }
+  if (kind) select(kind); else if (view !== "intro") deselect();
+});
+canvas.addEventListener("pointermove", (e) => {
+  if (busy || e.pointerType !== "mouse" || e.buttons) { tag.classList.remove("show"); return; }
+  const kind = pick(e);
+  canvas.style.cursor = kind ? "pointer" : "grab";
+  if (kind && mode === "explore") { tag.textContent = kind; tag.style.left = e.clientX + "px"; tag.style.top = e.clientY + "px"; tag.classList.add("show"); }
+  else tag.classList.remove("show");
+});
+canvas.addEventListener("pointerleave", () => tag.classList.remove("show"));
+
+/* =========================================================== quiz */
+let mode = "explore";
+const quiz = document.getElementById("quiz");
+const Q = { list: [], i: 0, score: 0, tries: 0, done: false };
+function setMode(m) {
+  mode = m;
+  document.getElementById("modeExplore").classList.toggle("on", m === "explore");
+  document.getElementById("modeQuiz").classList.toggle("on", m === "quiz");
+  quiz.classList.toggle("show", m === "quiz");
+  deselect();
+  if (m === "quiz") startQuiz();
+}
+document.getElementById("modeExplore").addEventListener("click", () => setMode("explore"));
+document.getElementById("modeQuiz").addEventListener("click", () => setMode("quiz"));
+function startQuiz() {
+  Q.list = ORDER.filter(k => EX.groups[k]).sort(() => Math.random() - 0.5).slice(0, 10);
+  Q.i = 0; Q.score = 0; Q.done = false; peel.value = 60; applyPeel(); showQ();
+}
+function showQ() {
+  Q.tries = 0;
+  const fb = document.getElementById("quizFb"); fb.textContent = ""; fb.className = "feedback";
+  if (Q.i >= Q.list.length) {
+    Q.done = true;
+    document.getElementById("quizRound").textContent = "Finished";
+    document.getElementById("quizQ").textContent = `You got ${Q.score} out of ${Q.list.length * 2} points!`;
+    document.getElementById("quizSkip").textContent = "Play again";
+    return;
+  }
+  document.getElementById("quizSkip").textContent = "Skip";
+  document.getElementById("quizRound").textContent = `Question ${Q.i + 1} of ${Q.list.length}`;
+  document.getElementById("quizScore").textContent = `Score ${Q.score}`;
+  document.getElementById("quizQ").textContent = `"${ORGANELLES[Q.list[Q.i]].clue}" Click it!`;
+}
+function answer(kind) {
+  if (Q.done) return;
+  const want = Q.list[Q.i], fb = document.getElementById("quizFb");
+  if (kind === want) {
+    Q.score += Q.tries === 0 ? 2 : 1;
+    fb.textContent = `Yes! That's the ${kind}.`; fb.className = "feedback good";
+    setEmissive(EX, kind, EX.groups[kind].color, 0.6);
+    setTimeout(() => { setEmissive(EX, kind, null); Q.i++; showQ(); }, 1300);
+  } else {
+    Q.tries++;
+    fb.textContent = `Nope, that's the ${kind}. Try again.`; fb.className = "feedback bad";
+  }
+}
+document.getElementById("quizHint").addEventListener("click", () => { if (Q.done) return; const k = Q.list[Q.i]; Q.tries++; setEmissive(EX, k, "#ffffff", 0.5); setTimeout(() => setEmissive(EX, k, null), 900); });
+document.getElementById("quizSkip").addEventListener("click", () => { if (Q.done) return startQuiz(); Q.i++; showQ(); });
+document.getElementById("menuBtn").addEventListener("click", () => document.body.classList.toggle("menu"));
+
+/* =========================================================== labels with leader lines */
+const labelsOn = document.getElementById("labelsOn");
+labelsOn.addEventListener("change", () => { document.getElementById("labelsExplore").style.display = labelsOn.checked ? "" : "none"; });
+let labelsCut = null, labelsEx = null;
+const WEDGE = new THREE.Vector3(1, 1, 1).normalize();
+
+class LabelSet {
+  constructor(wrap, reg, kindOfView) {
+    this.wrap = wrap; this.svg = wrap.querySelector("svg"); this.reg = reg; this.mode = kindOfView; this.L = {};
+    for (const kind of ORDER) {
+      const g = reg.groups[kind]; if (!g) continue;
+      const el = document.createElement("div");
+      el.className = "lbl";
+      el.innerHTML = `<span class="dot" style="background:${g.color}"></span>${kind}`;
+      el.addEventListener("click", () => { if (this.mode === "cut" || mode === "explore") select(kind, this.mode === "explore"); });
+      wrap.appendChild(el);
+      const line = document.createElementNS(SVGNS, "polyline");
+      const dot = document.createElementNS(SVGNS, "circle"); dot.setAttribute("r", "2.6");
+      this.svg.appendChild(line); this.svg.appendChild(dot);
+      const pts = [];
+      if (kind === "Ribosomes") {
+        const mesh = g.meshes[0], pos = mesh.geometry.attributes.position; mesh.updateWorldMatrix(true, false);
+        for (let i = 0; i < pos.count; i += Math.max(1, Math.floor(pos.count / 120))) pts.push(new THREE.Vector3().fromBufferAttribute(pos, i).applyMatrix4(mesh.matrixWorld));
+      } else if (!SHELL.has(kind) && kind !== "Nucleus") {
+        for (const o of g.objects) pts.push(new THREE.Box3().setFromObject(o).getCenter(new THREE.Vector3()));
+      }
+      this.L[kind] = { el, line, dot, pts };
+    }
+  }
+  anchor(kind) {
+    const L = this.L[kind], camPos = camera.position;
+    const right = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 0);
+    const up = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 1);
+    const toCam = camPos.clone().sub(controls.target).normalize();
+    if (this.mode === "cut") {
+      // flat directions on the cut surface
+      const flatR = new THREE.Vector3(right.x, 0, right.z).normalize();
+      const flatF = new THREE.Vector3(toCam.x, 0, toCam.z).normalize();
+      if (kind === "Cell Membrane") return flatR.clone().multiplyScalar(-0.75).add(flatF.clone().multiplyScalar(-0.66)).normalize().multiplyScalar(R - 0.03).setY(-0.02);
+      if (kind === "Cytoplasm") return flatR.clone().multiplyScalar(0.85).add(flatF.clone().multiplyScalar(0.3)).normalize().multiplyScalar(1.5).setY(-0.55);
+      if (kind === "Nucleus") return flatR.clone().multiplyScalar(-0.6).add(flatF.clone().multiplyScalar(-0.8)).normalize().multiplyScalar(0.72).setY(-0.01);
+      let best = null, bestS = Infinity;
+      for (const p of L.pts) {
+        if (p.y > 0.25) continue;
+        const q = p.clone(); q.y = Math.min(q.y, -0.02);
+        // prefer things near the cut (easy to see from above) and toward the camera
+        const s = -q.y * 1.4 + q.distanceTo(camPos) * 0.35;
+        if (s < bestS) { bestS = s; best = q; }
+      }
+      return best;
+    }
+    if (kind === "Cell Membrane") return up.clone().multiplyScalar(0.75).add(right.clone().multiplyScalar(-0.45)).add(toCam.clone().multiplyScalar(0.5)).normalize().multiplyScalar(2.0);
+    if (kind === "Cytoplasm") return right.clone().multiplyScalar(0.55).add(up.clone().multiplyScalar(-0.55)).add(toCam.clone().multiplyScalar(0.3)).normalize().multiplyScalar(1.82);
+    if (kind === "Nucleus") return up.clone().multiplyScalar(0.8).add(right.clone().multiplyScalar(0.3)).add(toCam.clone().multiplyScalar(0.35)).normalize().multiplyScalar(0.72);
+    let best = null, bestScore = Infinity;
+    for (const p of L.pts) {
+      const score = p.distanceTo(camPos) - (p.clone().normalize().dot(WEDGE) > 0.55 ? 0.8 : 0);
+      if (score < bestScore) { bestScore = score; best = p; }
+    }
+    return best;
+  }
+  layout() {
+    const W = window.innerWidth, H = window.innerHeight, phone = W < 760;
+    const proj = (v) => { const p = v.clone().project(camera); return { x: (p.x * 0.5 + 0.5) * W, y: (-p.y * 0.5 + 0.5) * H, z: p.z }; };
+    const c = proj(controls.target);
+    const edge = proj(controls.target.clone().add(new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 0).multiplyScalar(R + 0.05)));
+    const rad = Math.hypot(edge.x - c.x, edge.y - c.y);
+    const items = [];
+    for (const kind of ORDER) {
+      const L = this.L[kind]; if (!L) continue;
+      let hidden = false;
+      if (this.mode === "explore") hidden = (SHELL.has(kind) && peel.value < 5) || (isolated && isolated !== kind);
+      const a = hidden ? null : this.anchor(kind);
+      const p = a && proj(a);
+      if (!p || p.z > 1 || p.x < 4 || p.x > W - 4 || p.y < 4 || p.y > H - 4) { L.el.classList.add("off"); L.line.style.display = L.dot.style.display = "none"; continue; }
+      L.el.classList.remove("off"); L.line.style.display = L.dot.style.display = "";
+      L.el.classList.toggle("on", selected === kind);
+      items.push({ L, p, side: p.x < c.x ? -1 : 1 });
+    }
+    const gap = phone ? 22 : 30, top = phone ? 70 : 80, bottom = H - (phone ? (this.mode === "cut" ? 90 : 70) : (this.mode === "cut" ? 120 : 30));
+    for (const side of [-1, 1]) {
+      const col = items.filter(i => i.side === side).sort((a, b) => a.p.y - b.p.y);
+      let y = -Infinity;
+      for (const it of col) { it.y = Math.max(it.p.y, y + gap); y = it.y; }
+      const over = y - bottom; if (over > 0) for (const it of col) it.y -= over;
+      for (const it of col) it.y = Math.max(top, it.y);
+      for (let i = 1; i < col.length; i++) col[i].y = Math.max(col[i].y, col[i - 1].y + gap);
+      const zoomed = rad > Math.min(W, H) * 0.46;
+      const xEdge = c.x + side * (rad + (phone ? 14 : 46));
+      const minX = phone ? 6 : (this.mode === "explore" ? 280 : 16), maxX = W - (phone ? 6 : 16);
+      for (const it of col) {
+        const el = it.L.el, wEl = el.offsetWidth || 120;
+        let lx = zoomed ? it.p.x + side * 60 : xEdge;
+        lx = side < 0 ? Math.max(minX + wEl, lx) : Math.min(maxX - wEl, lx);
+        el.classList.toggle("left", side < 0);
+        el.style.left = lx + "px"; el.style.top = it.y + "px";
+        it.L.line.setAttribute("points", `${it.p.x},${it.p.y} ${lx - side * 12},${it.y} ${lx},${it.y}`);
+        it.L.dot.setAttribute("cx", it.p.x); it.L.dot.setAttribute("cy", it.p.y);
+      }
+    }
+  }
+}
+
+/* =========================================================== loop */
+let last = performance.now();
+function tick(now) {
+  const dt = Math.min(0.05, (now - last) / 1000); last = now;
+  runTweens(now);
+  // keep the top half's knife plane glued to the top half as it moves
+  if (FULL) { FULL.topGroup.updateMatrixWorld(true); clipTop[0].copy(topLocalPlane).applyMatrix4(FULL.topGroup.matrixWorld); }
+  // drifting specks
+  for (let s = 0; s < specks.length; s++) {
+    specks[s].rotation.y += dt * (0.01 + s * 0.008);
+    specks[s].position.y = Math.sin(now / 4000 + s) * 0.3;
+  }
+  if (selected && view === "explore" && mode === "explore" && !SHELL.has(selected)) {
+    const k = 0.3 + 0.2 * Math.sin(now / 300);
+    for (const m of EX.groups[selected].meshes) m.material.emissiveIntensity = k;
+  }
+  controls.update();
+  renderer.render(scene, camera);
+  if (view === "cut" && labelsCut && !busy) labelsCut.layout();
+  if (view === "explore" && labelsEx && labelsOn.checked) {
+    document.getElementById("labelsExplore").style.visibility = mode === "explore" ? "visible" : "hidden";
+    if (mode === "explore") labelsEx.layout();
+  }
+  requestAnimationFrame(tick);
+}
+requestAnimationFrame(tick);
+</script>
+</body>
+</html>
