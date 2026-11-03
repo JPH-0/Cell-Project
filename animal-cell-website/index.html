@@ -26,7 +26,7 @@
     font-family: "DM Sans", system-ui, sans-serif;
     -webkit-font-smoothing: antialiased;
   }
-  #scene { position: fixed; inset: 0; display: block; touch-action: none; }
+  #scene { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; height: 100dvh; display: block; touch-action: none; }
   button { font: inherit; color: inherit; cursor: pointer; }
   .script { font-family: "Great Vibes", "Snell Roundhand", "Apple Chancery", cursive; }
 
@@ -38,11 +38,11 @@
   body[data-view="intro"] .view-inside { opacity: 0 !important; pointer-events: none !important; visibility: hidden; }
 
   /* ---------- intro ---------- */
-  #title { position: fixed; left: 50%; top: max(18px, 3vh); transform: translateX(-50%); width: min(84vw, 560px); height: auto; overflow: visible; pointer-events: none; }
+  #title { position: fixed; left: 50%; top: max(18px, 3vh); transform: translateX(-50%); width: min(88vw, 620px); height: auto; overflow: visible; pointer-events: none; }
   #introBottom { position: fixed; left: 0; right: 0; bottom: max(18px, 3vh); display: flex; flex-direction: column; align-items: center; gap: 14px; pointer-events: none; }
-  #byline { width: min(52vw, 240px); height: auto; overflow: visible; }
+  #byline { width: min(62vw, 310px); height: auto; overflow: visible; }
   .ink-stroke { fill: none; stroke: rgba(255,255,255,0.85); stroke-width: 1.2; }
-  .ink-fill { fill: url(#inkGrad); filter: drop-shadow(0 0 14px rgba(190, 210, 255, 0.35)); }
+  .ink-fill { fill: url(#inkGrad); filter: drop-shadow(0 1px 6px rgba(170, 195, 255, 0.22)); }
   .pen { fill: #fff; filter: drop-shadow(0 0 6px #ffffff) drop-shadow(0 0 16px #a9c4ff); opacity: 0; }
 
   .cta { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; pointer-events: auto; opacity: 0; transform: translateY(10px); transition: opacity .6s, transform .6s; }
@@ -273,7 +273,7 @@ camera.position.copy(VIEWS.intro.pos); controls.target.copy(VIEWS.intro.target);
 
 function resize() {
   const w = window.innerWidth, h = window.innerHeight, tall = w / h < 0.8;
-  renderer.setSize(w, h, false);
+  renderer.setSize(w, h, true);   // also sets the canvas CSS size
   camera.aspect = w / h;
   camera.fov = tall ? 56 : 36;
   camera.updateProjectionMatrix();
@@ -413,10 +413,11 @@ function prepareWriting(svg) {
     <text class="script ink-stroke" x="0" y="0" font-size="${size}" mask="url(#${id}ms)">${text}</text>
     <text class="script ink-fill" x="0" y="0" font-size="${size}" mask="url(#${id}mf)">${text}</text>
     <circle class="pen" r="${size * 0.035}"/>`;
-  const bb = svg.querySelector(".ink-fill").getBBox(), pad = size * 0.18;
-  svg.setAttribute("viewBox", `${bb.x - pad} ${bb.y - pad} ${bb.width + pad * 2} ${bb.height + pad * 2}`);
-  svg.style.aspectRatio = `${bb.width + pad * 2} / ${bb.height + pad * 2}`;
-  return { bb, size, ms: svg.querySelector(`#${id}ms`), mf: svg.querySelector(`#${id}mf`), pen: svg.querySelector(".pen") };
+  const bb = svg.querySelector(".ink-fill").getBBox();
+  const padX = size * 0.45, padY = size * 0.3;       // script letters swing past their box, give them room
+  svg.setAttribute("viewBox", `${bb.x - padX} ${bb.y - padY} ${bb.width + padX * 2} ${bb.height + padY * 2}`);
+  svg.style.aspectRatio = `${bb.width + padX * 2} / ${bb.height + padY * 2}`;
+  return { bb, size, texts: [...svg.querySelectorAll("text")], ms: svg.querySelector(`#${id}ms`), mf: svg.querySelector(`#${id}mf`), pen: svg.querySelector(".pen") };
 }
 function setMask(mask, x) {
   mask.querySelector(".solid").setAttribute("width", Math.max(0, x + 2000));
@@ -436,7 +437,13 @@ function write(w, dur) {
       pen.setAttribute("cy", bb.y + bb.height * (0.5 + 0.26 * Math.sin(tt * 46) * Math.cos(tt * 13)));
       if (t < 1) return requestAnimationFrame(step);
       const t1 = performance.now();
-      const settle = (n) => { const k = Math.min(1, (n - t1) / 450); setMask(mf, x - size * 0.55 + size * 1.2 * k); pen.style.opacity = 1 - k; if (k < 1) requestAnimationFrame(settle); else done(); };
+      const settle = (n) => {
+        const k = Math.min(1, (n - t1) / 450);
+        setMask(mf, x - size * 0.55 + size * 1.2 * k); pen.style.opacity = 1 - k;
+        if (k < 1) return requestAnimationFrame(settle);
+        w.texts.forEach(t => t.removeAttribute("mask"));   // fully written: nothing can cut letters off
+        done();
+      };
       requestAnimationFrame(settle);
     };
     requestAnimationFrame(step);

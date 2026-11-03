@@ -116,10 +116,10 @@ MAT = {
     "rer":        make_mat("Rough ER", (0.28, 0.52, 0.95), 0.40),
     "ser":        make_mat("Smooth ER", (0.30, 0.78, 0.62), 0.35),
     "ribosome":   make_mat("Ribosome", (0.18, 0.10, 0.35), 0.60),
-    "golgi":      make_mat("Golgi Body", (0.98, 0.62, 0.15), 0.35),
+    "golgi":      make_mat("Golgi Body", (0.80, 0.05, 0.08), 0.35),
     "mito":       make_mat("Mitochondria Outer", (0.22, 0.78, 0.30), 0.30, 0.55),
     "cristae":    make_mat("Mitochondria Cristae", (0.72, 1.00, 0.55), 0.40),
-    "lysosome":   make_mat("Lysosome", (0.90, 0.20, 0.25), 0.35),
+    "lysosome":   make_mat("Lysosome", (0.30, 0.08, 0.62), 0.35),
     "vesicle":    make_mat("Vesicle", (1.00, 0.88, 0.45), 0.25, 0.85),
     "vacuole":    make_mat("Vacuole", (0.62, 0.82, 1.00), 0.10, 0.55),
 }
